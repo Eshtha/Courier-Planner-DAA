@@ -1,0 +1,84 @@
+
+======================================================================
+1. PRIORITISED PARCELS (merge sort: priority, then deadline)
+======================================================================
+ID     Destination       kg  Prio  Deadline  Value
+P08    Hospital         1.0     1     10:00     58
+P02    Hospital         2.5     1     10:30     57
+P04    Station          3.5     2     11:30     46
+P01    Market           4.0     2     12:00     46
+P06    Library          1.5     3     14:00     34
+P03    College          6.0     3     15:00     33
+P09    Airport          8.0     4     16:00     22
+P05    TechPark         5.0     4     17:00     21
+P10    Market           2.0     5     17:30     10
+P07    Mall             7.0     5     18:00     10
+
+======================================================================
+2. PACKING PLAN (0/1 knapsack, capacity 15 kg)
+======================================================================
+ID     Destination       kg  Prio  Deadline  Value
+P08    Hospital         1.0     1     10:00     58
+P02    Hospital         2.5     1     10:30     57
+P04    Station          3.5     2     11:30     46
+P01    Market           4.0     2     12:00     46
+P06    Library          1.5     3     14:00     34
+P10    Market           2.0     5     17:30     10
+Loaded weight : 14.5 / 15 kg
+DP value      : 251   (greedy heuristic: 251)
+DP table size : 11 rows x 151 columns
+Deferred      : P03, P09, P05, P07
+
+DP table excerpt (columns are whole kg):
+item       0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15
+-          0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+P08        0   58   58   58   58   58   58   58   58   58   58   58   58   58   58   58
+P02        0   58   58   58  115  115  115  115  115  115  115  115  115  115  115  115
+P04        0   58   58   58  115  115  115  161  161  161  161  161  161  161  161  161
+P01        0   58   58   58  115  115  115  161  161  161  161  207  207  207  207  207
+P06        0   58   58   92  115  149  149  161  161  195  195  207  207  241  241  241
+P03        0   58   58   92  115  149  149  161  161  195  195  207  207  241  241  241
+P09        0   58   58   92  115  149  149  161  161  195  195  207  207  241  241  241
+P05        0   58   58   92  115  149  149  161  161  195  195  207  207  241  241  241
+P10        0   58   58   92  115  149  149  161  161  195  195  207  207  241  241  251
+P07        0   58   58   92  115  149  149  161  161  195  195  207  207  241  241  251
+
+======================================================================
+3. SHORTEST PATHS FROM Depot (Dijkstra)
+======================================================================
+Hospital          3.8 km   Depot -> Market -> Hospital
+Library           3.0 km   Depot -> Library
+Market            2.0 km   Depot -> Market
+Station           4.0 km   Depot -> Market -> Station
+
+======================================================================
+4. DELIVERY ROUTE
+======================================================================
+Nearest neighbour : Depot -> Market -> Hospital -> Library -> Station -> Depot  = 18.3 km
+After 2-opt       : Depot -> Library -> Hospital -> Market -> Station -> Depot  = 14.3 km
+
+Legs of the final route:
+ 1. Depot to Library: 3.0 km (total 3.0), arrive 09:07 via Depot -> Library
+ 2. Library to Hospital: 3.5 km (total 6.5), arrive 09:18 via Library -> Hospital
+ 3. Hospital to Market: 1.8 km (total 8.3), arrive 09:25 via Hospital -> Market
+ 4. Market to Station: 2.0 km (total 10.3), arrive 09:33 via Market -> Station
+ 5. Station to Depot: 4.0 km (total 14.3), arrive 09:46 via Station -> Market -> Depot
+
+======================================================================
+5. DELIVERY SCHEDULE (09:00 start, 25 km/h, 3 min per stop)
+======================================================================
+P06    Library       ETA 09:07  due 14:00  ON TIME
+P08    Hospital      ETA 09:18  due 10:00  ON TIME
+P02    Hospital      ETA 09:18  due 10:30  ON TIME
+P01    Market        ETA 09:25  due 12:00  ON TIME
+P10    Market        ETA 09:25  due 17:30  ON TIME
+P04    Station       ETA 09:33  due 11:30  ON TIME
+
+======================================================================
+6. RUNTIME OF MAJOR STEPS (single run)
+======================================================================
+Sorting                  0.038 ms
+Knapsack DP              0.242 ms
+Dijkstra                 0.119 ms
+Nearest neighbour        0.019 ms
+2-opt                    0.042 ms

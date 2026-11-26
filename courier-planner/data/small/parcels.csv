@@ -1,0 +1,11 @@
+id,destination,weight_kg,priority,deadline
+P01,Market,4.0,2,12:00
+P02,Hospital,2.5,1,10:30
+P03,College,6.0,3,15:00
+P04,Station,3.5,2,11:30
+P05,TechPark,5.0,4,17:00
+P06,Library,1.5,3,14:00
+P07,Mall,7.0,5,18:00
+P08,Hospital,1.0,1,10:00
+P09,Airport,8.0,4,16:00
+P10,Market,2.0,5,17:30
