@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Courier Planner Dashboard</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--ink:#17212b;--muted:#5c6b7a;--line:#dde3e9;--accent:#1f66d1;--good:#18794e;--bad:#c0362c;--soft:#eaf2ff}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.5 system-ui,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+header{background:#12233a;color:#fff;padding:16px 24px;display:flex;flex-wrap:wrap;gap:16px;align-items:end;justify-content:space-between}
+h1{margin:0;font-size:20px}header p{margin:2px 0 0;color:#b8c7da}
+form{display:flex;gap:12px;align-items:end;flex-wrap:wrap}
+label{display:grid;font-size:12px;color:#b8c7da}
+select,input,button{font:inherit;padding:7px 10px;border-radius:6px;border:1px solid #c5ced8}
+input{width:110px}
+button{background:var(--accent);color:#fff;border-color:var(--accent);cursor:pointer;font-weight:600}
+button:disabled{opacity:.6;cursor:wait}
+main{max-width:1280px;margin:auto;padding:20px 16px;display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.kpi,.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.kpi span{color:var(--muted);font-size:12px}.kpi b{display:block;font-size:24px}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media(max-width:900px){.two{grid-template-columns:minmax(0,1fr)}}
+h2{font-size:15px;margin:0 0 10px}
+.scroll{overflow:auto;max-height:380px}
+table{width:100%;border-collapse:collapse;white-space:nowrap}
+th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line)}
+th{position:sticky;top:0;background:var(--card);color:var(--muted);font-size:12px}
+#dp td,#dp th{text-align:right;padding:3px 3px;font-size:12px;font-variant-numeric:tabular-nums}
+tr.on{background:var(--soft)}
+.good{color:var(--good);font-weight:600}.bad{color:var(--bad);font-weight:600}
+.note{color:var(--muted);margin:8px 0 0;overflow-wrap:anywhere}
+svg{width:100%;height:auto;max-height:520px}
+.bar{display:grid;grid-template-columns:140px 1fr 90px;gap:10px;align-items:center;margin:8px 0}
+.bar i{display:block;height:12px;background:var(--accent);border-radius:3px}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr));gap:12px}
+.charts img{width:100%;border:1px solid var(--line);border-radius:6px}
+#error{display:none;background:#fdecea;color:var(--bad);padding:12px;border-radius:8px}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Courier Planning Dashboard</h1><p>Sorting, 0/1 knapsack, Dijkstra, nearest neighbour and 2-opt in Python</p></div>
+  <form id="form">
+    <label>Dataset<select id="dataset"><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label>
+    <label>Capacity (kg)<input id="capacity" type="number" min="0" max="200" step="0.1" value="15" required></label>
+    <button id="run">Plan delivery</button>
+  </form>
+</header>
+<main>
+  <div id="error" role="alert"></div>
+  <div id="results" style="display:grid;grid-template-columns:minmax(0,1fr);gap:16px">
+    <section class="kpis" id="kpis"></section>
+    <section class="card"><h2>Delivery route map</h2><div id="map"></div><p class="note" id="routeText"></p></section>
+    <div class="two">
+      <section class="card"><h2>1. Prioritised parcels (merge sort)</h2><div class="scroll" id="parcels"></div><p class="note">Highlighted rows are packed.</p></section>
+      <section class="card"><h2>2. Knapsack DP table (whole-kg columns)</h2><div class="scroll" id="dp"></div><p class="note" id="dpNote"></p></section>
+      <section class="card"><h2>3. Shortest paths from depot (Dijkstra)</h2><div class="scroll" id="shortest"></div></section>
+      <section class="card"><h2>4. Route legs</h2><div class="scroll" id="legs"></div></section>
+      <section class="card"><h2>5. Delivery schedule</h2><div class="scroll" id="schedule"></div></section>
+      <section class="card"><h2>6. Runtime of this run</h2><div id="timings"></div><p class="note">Single run. Bar lengths use a linear scale.</p></section>
+    </div>
+  </div>
+  <section class="card"><h2>Benchmark charts</h2><p class="note">Saved results from benchmark.py. They do not change when you plan a delivery.</p>
+    <div class="charts">
+      <img src="/charts/pipeline_steps.png" alt="Runtime of pipeline steps">
+      <img src="/charts/sorting.png" alt="Sorting comparison">
+      <img src="/charts/knapsack.png" alt="Knapsack scaling">
+      <img src="/charts/dijkstra.png" alt="Dijkstra scaling">
+      <img src="/charts/tsp_runtime.png" alt="Route approximation and exhaustive search runtime">
+    </div>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = v => String(v).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+const table = (heads, rows, classes = []) => `<table><thead><tr>${heads.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${
+  rows.map((r, i) => `<tr class="${classes[i] || ""}">${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+const path = list => list.map(esc).join(" → ");
+
+function drawMap(d) {
+  const pts = Object.values(d.positions), xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const at = n => { const [x, y] = d.positions[n]; return [50 + (x - x0) / (x1 - x0) * 900, 470 - (y - y0) / (y1 - y0) * 430]; };
+  const line = (a, b, style) => { const [ax, ay] = at(a), [bx, by] = at(b); return `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" ${style}/>`; };
+  const small = Object.keys(d.positions).length < 15;
+  let s = d.edges.map(([a, b, km]) => {
+    const [ax, ay] = at(a), [bx, by] = at(b);
+    return line(a, b, 'stroke="#d3dae2" stroke-width="1.5"') + (small ? `<text x="${(ax+bx)/2}" y="${(ay+by)/2-4}" font-size="11" fill="#7b8896" text-anchor="middle">${km}</text>` : "");
+  }).join("");
+  d.legs.forEach(l => l.path.slice(1).forEach((n, i) => s += line(l.path[i], n, 'stroke="#1f66d1" stroke-width="3.5" stroke-linecap="round" opacity=".75"')));
+  const order = {}; d.route.slice(1, -1).forEach((n, i) => order[n] = i + 1);
+  Object.keys(d.positions).forEach(n => {
+    const [x, y] = at(n), isDepot = n === d.depot, stop = order[n];
+    const r = isDepot || stop ? (Object.keys(d.positions).length > 100 ? 7 : 11) : 3;
+    s += `<g><title>${esc(n)}${stop ? ", stop " + stop : ""}</title><circle cx="${x}" cy="${y}" r="${r}" fill="${isDepot ? "#12233a" : stop ? "#1f66d1" : "#9aa7b4"}"/>`;
+    if (isDepot || stop) s += `<text x="${x}" y="${y+3}" fill="#fff" font-size="${r < 10 ? 8 : 11}" text-anchor="middle">${isDepot ? "D" : stop}</text>`;
+    if (small) s += `<text x="${x}" y="${y+26}" font-size="13" text-anchor="middle" fill="#17212b">${esc(n)}</text>`;
+    s += "</g>";
+  });
+  $("map").innerHTML = `<svg viewBox="0 0 1000 510" role="img" aria-label="Road network with delivery route">${s}</svg>`;
+}
+
+function render(d) {
+  const late = d.deliveries.filter(x => x.late).length;
+  $("kpis").innerHTML = [["Parcels packed", `${d.selected.length} / ${d.sorted.length}`], ["Load", `${d.load} / ${d.capacity} kg`],
+    ["Total value", d.value], ["Route length", `${d.km} km`], ["Late parcels", late]]
+    .map(([k, v]) => `<div class="kpi"><span>${k}</span><b class="${k === "Late parcels" && late ? "bad" : ""}">${v}</b></div>`).join("");
+  drawMap(d);
+  $("routeText").innerHTML = `Blue lines show roads used; numbers show stop order. ${Object.keys(d.positions).length < 15 ? "Schematic, not to scale. " : "Hover over a point for its name. "}<br><b>Nearest neighbour:</b> ${d.nnKm} km. <b>After 2-opt:</b> ${d.km} km.<br>${path(d.route)}`;
+  const packed = new Set(d.selected), rejected = new Set(d.rejected);
+  $("parcels").innerHTML = table(["ID","Destination","kg","Priority","Deadline","Value","Status"],
+    d.sorted.map(p => [esc(p.id), esc(p.destination), p.weight, p.priority, p.deadline, p.value, packed.has(p.id) ? "Packed" : rejected.has(p.id) ? "Rejected" : "Deferred"]),
+    d.sorted.map(p => packed.has(p.id) ? "on" : ""));
+  $("dp").innerHTML = table(["Item", ...d.dp.columns], d.dp.rows.map(([n, v]) => [esc(n), ...v]));
+  $("dpNote").textContent = `Best value: ${d.value}. Greedy comparison: ${d.greedy}. The calculation uses 0.1 kg steps.`;
+  $("shortest").innerHTML = table(["Stop","km","Path"], d.shortest.map(x => [esc(x.stop), x.km, path(x.path)]));
+  $("legs").innerHTML = table(["#","From","To","km","Total","Arrive","Roads used"], d.legs.map((l, i) => [i+1, esc(l.from), esc(l.to), l.km, l.total, l.eta, path(l.path)]));
+  $("schedule").innerHTML = table(["Parcel","Destination","ETA","Deadline","Status"], d.deliveries.map(x => [esc(x.id), esc(x.destination), x.eta, x.deadline,
+    x.late ? '<span class="bad">Late</span>' : '<span class="good">On time</span>']));
+  const max = Math.max(...Object.values(d.timings), 1e-9);
+  $("timings").innerHTML = Object.entries(d.timings).map(([k, v]) => `<div class="bar"><span>${k}</span><div><i style="width:${v/max*100}%"></i></div><span>${v.toFixed(3)} ms</span></div>`).join("");
+}
+
+async function load() {
+  $("run").disabled = true; $("error").style.display = "none";
+  try {
+    const res = await fetch(`/api/plan?${new URLSearchParams({dataset: $("dataset").value, capacity: $("capacity").value})}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    render(data); $("results").style.display = "grid";
+  } catch (e) {
+    $("results").style.display = "none";
+    $("error").textContent = `Could not plan the delivery: ${e.message}. Check that app.py is running.`;
+    $("error").style.display = "block";
+  } finally { $("run").disabled = false; }
+}
+$("form").addEventListener("submit", e => { e.preventDefault(); load(); });
+$("dataset").addEventListener("change", e => { $("capacity").value = {small:15, medium:30, large:60}[e.target.value]; load(); });
+load();
+</script>
+</body>
+</html>
